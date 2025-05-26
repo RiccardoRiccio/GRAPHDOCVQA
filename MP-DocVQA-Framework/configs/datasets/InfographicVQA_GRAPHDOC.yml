@@ -1,0 +1,7 @@
+dataset_name: InfographicVQA_GRAPHDOC
+# Use the QAS folder as the location for the QA JSON file.
+imdb_dir: /data2/users/rriccio/infographic/infographicsvqa_qas
+images_dir: /data2/users/rriccio/infographic/infographicsvqa_images
+# Optionally, if your OCR JSON files are in a different folder, provide that.
+ocr_dir: /data2/users/rriccio/infographic/infographicsvqa_ocr
+ocr_graphdoc_dir: /data2/users/rriccio/easyocr_infographic

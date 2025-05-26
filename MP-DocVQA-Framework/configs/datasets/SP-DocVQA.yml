@@ -1,0 +1,3 @@
+dataset_name: SP-DocVQA
+imdb_dir: /data2/users/rriccio/spdocvqa_imdb # /imdb/collection/imdb_train.npy
+images_dir: /data2/users/rriccio/spdocvqa_images

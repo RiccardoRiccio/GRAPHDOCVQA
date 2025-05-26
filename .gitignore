@@ -1,0 +1,35 @@
+# Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE/editor files
+.vscode/
+.idea/
+
+# Notebook autosaves
+*.ipynb_checkpoints
+*-checkpoint.ipynb
+
+# Logs and temp files
+*.log
+*.err
+*.swp
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Model weights
+*.pt
+*.ckpt
+*.pth
+
+# OS-specific
+.DS_Store
+
+# Cache folders
+.cache/
+*_cache/

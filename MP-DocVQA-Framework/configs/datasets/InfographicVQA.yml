@@ -1,0 +1,18 @@
+dataset_name: InfographicVQA
+# Use the QAS folder as the location for the QA JSON file.
+imdb_dir: /data2/users/rriccio/infographic/infographicsvqa_qas
+images_dir: /data2/users/rriccio/infographic/infographicsvqa_images
+# Optionally, if your OCR JSON files are in a different folder, provide that.
+ocr_dir: /data2/users/rriccio/infographic/infographicsvqa_ocr
+graphdoc_dir:  /data2/users/rriccio/infographic/graphdoc_embeddings_info
+# val_embeddings_dir: /data2/users/rriccio/spdocvqa_embeddings_sample_original
+# train_qas_path: /data2/users/rriccio/spdocvqa_qas/train_v1.0_withQT.json
+# val_qas_path: /data2/users/rriccio/spdocvqa_qas/val_v1.0_withQT.json
+
+# train_embeddings_dir: /data2/users/rriccio/spdocvqa_embeddings_sample_original
+# val_embeddings_dir: /data2/users/rriccio/spdocvqa_embeddings_sample_original
+# train_qas_path: /data2/users/rriccio/spdocvqa_qas/train_v1.0_withQT.json
+# val_qas_path: /data2/users/rriccio/spdocvqa_qas/val_v1.0_withQT.json
+ 
+
+  

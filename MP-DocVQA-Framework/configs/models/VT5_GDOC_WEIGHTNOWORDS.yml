@@ -1,0 +1,18 @@
+model_name: VT5_GDOC_WEIGHTNOWORDS
+model_weights: /data2/users/rriccio/save_nowords_vt5_gdoc_weigh_t5/checkpoints/vt5_gdoc_nowords_none_sp-docvqa_gdoc/model__9.ckpt
+# model_weights: t5-base
+save_dir: /data2/users/rriccio/save_weigthsnowords_vt5_gdoc_weigh_t5/
+max_source_length: 512
+device: cuda
+data_parallel: False
+
+training_parameters:
+  lr: 2e-4
+  batch_size: 4
+  train_epochs: 10
+  warmup_iterations: 1000
+
+visual_module:
+  model: 'dit'
+  finetune: false
+  model_weights: 'microsoft/dit-base-finetuned-rvlcdip'

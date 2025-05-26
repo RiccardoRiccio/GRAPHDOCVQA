@@ -1,0 +1,35 @@
+#########
+# added ignore files after the ######
+.vscode/*
+pretrained_model/*
+
+
+########## Here add gitignore files ##########
+
+
+
+# Ignore Python cache files and compiled Python files
+__pycache__/
+*.pyc
+
+# Ignore dataset directory
+sp-docvqa/
+pretrained_model/
+
+# Ignore temporary or output files
+samples/*.json
+samples/*.png
+
+# Ignore environment files if specific to your local setup
+environment.yml
+
+# Ignore personal or trial code (optional, if not part of the project)
+mytrialcode/
+
+cuda_11.0.3_450.51.06_linux.run
+
+
+RVL_CDIP/
+save/
+sp-docvqa_sample/
+spdocvqa_embeddings_single/

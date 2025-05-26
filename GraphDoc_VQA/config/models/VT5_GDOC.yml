@@ -1,0 +1,55 @@
+
+model_name: VT5_GDOC
+
+# model_name: VT5
+# model_weights: t5-base
+# model_weights: weights/t5_oracle_mp-docvqa__best.ckpt
+# save_dir: save/
+# model_weights: rubentito/vt5-base-spdocvqa
+
+save_dir: save_vt5_gdoc_weigh_t5/
+model_weights: t5-base
+
+max_source_length: 512
+device: cuda
+data_parallel: False
+
+training_parameters:
+  lr: 2e-4  # 2e-4
+  batch_size: 2
+  train_epochs: 2
+  warmup_iterations: 1000
+
+visual_module:
+  model: 'dit'  # 'vit' / 'dit'
+  finetune: false
+  model_weights: 'microsoft/dit-base-finetuned-rvlcdip'  # 'google/vit-base-patch16-224-in21k' / 'microsoft/dit-base-finetuned-rvlcdip'
+
+
+
+
+
+# model_name: VT5_GDOC
+# save_dir: /data2/users/rriccio/save_working_vt5_t5weights/
+# model_weights: t5-base
+# # model_weights: weights/t5_oracle_mp-docvqa__best.ckpt
+
+# # save_dir: /data2/users/rriccio/save_working_vt5_rubenweights/
+# # model_weights: rubentito/vt5-base-spdocvqa
+
+# max_source_length: 512
+# device: cuda
+# data_parallel: False
+
+# training_parameters:
+#   lr: 2e-4  # 2e-4
+#   batch_size: 8
+#   train_epochs: 10
+#   warmup_iterations: 1000
+
+# visual_module:
+#   model: 'dit'  # 'vit' / 'dit'
+#   finetune: false
+#   model_weights: 'microsoft/dit-base-finetuned-rvlcdip'  # 'google/vit-base-patch16-224-in21k' / 'microsoft/dit-base-finetuned-rvlcdip'
+
+

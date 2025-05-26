@@ -1,0 +1,24 @@
+
+model_name: VT5_FREEZED
+save_dir: /data2/users/rriccio/save_NNMODULE_vt5freezed_infographic/
+model_weights: t5-base
+# model_weights: weights/t5_oracle_mp-docvqa__best.ckpt
+
+# save_dir: /data2/users/rriccio/save_working_vt5_rubenweights/
+# model_weights: rubentito/vt5-base-spdocvqa
+
+max_source_length: 512
+device: cuda
+data_parallel: False
+
+training_parameters:
+  lr: 2e-4  # 2e-4
+  batch_size: 4
+  train_epochs: 10
+  warmup_iterations: 1000
+
+visual_module:
+  model: 'dit'  # 'vit' / 'dit'
+  finetune: True
+  model_weights: 'microsoft/dit-base-finetuned-rvlcdip'  # 'google/vit-base-patch16-224-in21k' / 'microsoft/dit-base-finetuned-rvlcdip'
+

@@ -1,0 +1,4 @@
+dataset_name: SP-DocVQA_GDOC
+imdb_dir: /data2/users/rriccio/spdocvqa_imdb # /imdb/collection/imdb_train.npy
+images_dir: /data2/users/rriccio/spdocvqa_images
+graphdoc_dir:  /data2/users/rriccio/spdocvqa_embeddings_sample_original/
