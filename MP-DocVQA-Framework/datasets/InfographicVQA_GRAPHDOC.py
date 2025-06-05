@@ -30,6 +30,31 @@ def polys2bboxes(polys):
     bboxes = np.array(bboxes).astype('int64')
     return bboxes
 
+def merge2d(tensors, pad_id):
+    dim1 = max([s.shape[0] for s in tensors])
+    dim2 = max([s.shape[1] for s in tensors])
+    out = tensors[0].new(len(tensors), dim1, dim2).fill_(pad_id)
+    for i, s in enumerate(tensors):
+        out[i, :s.shape[0], :s.shape[1]] = s
+    return out
+
+def merge3d(tensors, pad_id):
+    dim1 = max([s.shape[0] for s in tensors])
+    dim2 = max([s.shape[1] for s in tensors])
+    dim3 = max([s.shape[2] for s in tensors])
+    out = tensors[0].new(len(tensors), dim1, dim2, dim3).fill_(pad_id)
+    for i, s in enumerate(tensors):
+        out[i, :s.shape[0], :s.shape[1], :s.shape[2]] = s
+    return out
+    
+def mask1d(tensors, pad_id):
+    lengths= [len(s) for s in tensors]
+    out = tensors[0].new(len(tensors), max(lengths)).fill_(pad_id)
+    for i, s in enumerate(tensors):
+        out[i,:len(s)] = 1
+    return out
+
+
 class InfographicsVQADataset(Dataset):
     def __init__(self, imdb_dir, images_dir, ocr_dir,  ocr_graphdoc_dir, split, dataset_kwargs, max_samples=None):
         """
@@ -43,8 +68,6 @@ class InfographicsVQADataset(Dataset):
         """
         # Use imdb_dir to locate the QA JSON file.
         self.qa_dir = Path(imdb_dir)
-        # Assume the OCR files are stored in a separate folder if desired;
-        # otherwise, you can use qa_dir as the OCR directory.
         self.ocr_dir = Path(ocr_dir)
         self.images_dir = Path(images_dir)
         self.split = split
@@ -78,92 +101,107 @@ class InfographicsVQADataset(Dataset):
 
     def __len__(self):
         return len(self.samples)
-
+    
     def __getitem__(self, idx):
-        sample = self.samples[idx]
-        image_stem = sample['image_stem']
+        rec = self.samples[idx]
+        stem = rec['image_stem']
 
         # Load image.
         # Here we try to use the provided file name. If the extension is unknown, try common ones.
-        img_path = self.images_dir / sample['image_local_name']
+        # 1) Load & resize image
+        img_path = self.images_dir / rec['image_local_name']
         if not img_path.exists():
-            print("image path do not exist")
-            # Fallback: try with .png if not found.
-            img_path = self.images_dir / f"{image_stem}.png"
-        image = Image.open(img_path).convert('RGB')
-        width, height = image.size
+            # fallback to .png
+            img_path = self.images_dir / f"{stem}.png"
+        img_orig = Image.open(img_path).convert('RGB')
+        W, H = img_orig.size
+
+        # resize to 512×512 for model
+        img_resized = img_orig.resize((512, 512))
+        img_tensor = torch.from_numpy(
+            np.array(img_resized).transpose(2,0,1).astype(np.float32)
+        )
         
         # Load OCR data.
         # We use the 'ocr_output_file' field to locate the corresponding OCR JSON.
-        ocr_path = self.ocr_dir / sample['ocr_output_file']
-        with open(ocr_path, 'r') as f:
-            ocr_data = json.load(f)
-        
-        words = []
-        boxes = []
-
-
-        
-        for word in ocr_data.get('WORD', []):
-            # Extract the line text.
-            text_line = word.get('Text', '')
-            words.append(text_line)
-            bbox = word['Geometry']['BoundingBox']
-            # Extract the bounding box from the "Geometry" field.
+        # 2) Word-level OCR
+        ocr = json.load(open(self.ocr_dir / rec['ocr_output_file']))
+        words = []; boxes_orig = []
+        for w in ocr.get('WORD', []):
+            words.append(w.get('Text', ''))
+            bb = w['Geometry']['BoundingBox']
             box = [
-                float(bbox.get('Left', 0.0)),
-                float(bbox.get('Top', 0.0)),
-                float(bbox.get('Left', 0.0)) + float(bbox.get('Width', 0.0)),
-                float(bbox.get('Top', 0.0)) + float(bbox.get('Height', 0.0))
+                float(bb.get('Left',0.0)),
+                float(bb.get('Top',0.0)),
+                float(bb.get('Left',0.0))+float(bb.get('Width',0.0)),
+                float(bb.get('Top',0.0)) +float(bb.get('Height',0.0))
             ]
-            # Check if the box has exactly 4 elements.
-            if len(box) == 4:
-                boxes.append(box)
-            else:
-                print(f"Warning: Skipping box due to unexpected format: {box}")
-
-        # If no boxes were found, create an empty array with shape (0,4)
-        if len(boxes) == 0:
-            print(f"Warning: LEN OF BOXES IS '0")
-            boxes = np.empty((0, 4), dtype=np.float32)
+            if len(box)==4:
+                boxes_orig.append(box)
+        if boxes_orig:
+            boxes_orig = np.array(boxes_orig, dtype=np.float32)
+            # scale to pixel coords w.r.t original image
+            boxes_orig = np.round(
+                boxes_orig * np.array([W, H, W, H], dtype=np.float32)
+            ).astype(np.int64)
+            # also scaled into 512×512
+            scale = np.array([512/W,512/H,512/W,512/H],dtype=np.float32)
+            boxes_resized = torch.from_numpy(
+                np.round(boxes_orig.astype(np.float32)*scale).astype(np.int64)
+            )
+            boxes_orig = torch.from_numpy(boxes_orig)
         else:
-            boxes = np.array(boxes, dtype=np.float32)
-        # Scale boxes to pixel coordinates:
-        boxes = np.round(boxes * np.array([width, height, width, height], dtype=np.float32)).astype(np.int64)
-
+            print("Len of Boxes is 0")
+            boxes_orig = torch.zeros((0,4),dtype=torch.long)
+            boxes_resized = torch.zeros((0,4),dtype=torch.long)
 
 
 
         # --- Entity-Level OCR for GraphDoc Branch ---
         # For GraphDoc, we expect a file named "{image_stem}_easyocr.json" in ocr_graphdoc_dir.
-        ocr_graphdoc_filename = f"{image_stem}_easyocr.json"
+        ocr_graphdoc_filename = f"{stem}_easyocr.json"
         ocr_graphdoc_path = self.ocr_graphdoc_dir / ocr_graphdoc_filename
         with open(ocr_graphdoc_path, 'r') as f:
             ocr_graphdoc_data = json.load(f)
         # Get the "lines" key from the recognitionResults.
         lines_data = ocr_graphdoc_data["recognitionResults"][0].get("lines", [])
-        lines = [line["text"] for line in lines_data]
-        polys_lines = [line["boundingBox"] for line in lines_data]
-        if len(polys_lines) > 0:
-            line_boxes = polys2bboxes(polys_lines)
+        lines = [L["text"] for L in lines_data]
+        polys_lines = [L["boundingBox"] for L in lines_data]
+        if polys_lines:
+            line_boxes_orig = polys2bboxes(polys_lines)  # numpy [Nl,4]
+            scale_wh = np.array([512/W,512/H,512/W,512/H],dtype=np.float32)
+            line_boxes_resized = torch.from_numpy(
+                np.round(line_boxes_orig.astype(np.float32)*scale_wh).astype(np.int64)
+            )
+            line_boxes_orig = torch.from_numpy(line_boxes_orig)
         else:
-            line_boxes = np.empty((0, 4), dtype=np.int64)
+            print("Warning: No GraphDoc line-level boxes found")
+            line_boxes_orig    = torch.zeros((0,4),dtype=torch.long)
+            line_boxes_resized = torch.zeros((0,4),dtype=torch.long)
 
 
-    
+
 
         sample_info = {
-            'question_id': sample['question_id'],
-            'questions': sample['question'],
-            'answers': sample['answers'],
-            'words': words,
-            'boxes': np.array(boxes, dtype=np.int64),
-            'lines': lines,                    # Entity-level texts for GraphDoc branch
-            'line_boxes': np.array(line_boxes, dtype=np.int64), # [num_lines, 4] (raw coordinates)
-            'images': image,          # Wrap the image in a list
-            'image_name': sample['image_stem'],
-            'image_width': width,                     # Debug: image width
-            'image_height': height                    # Debug: image height
+            'question_id':           rec['question_id'],       # str, e.g. "12345"
+            'question':              rec['question'],          # str, e.g. "What is the title?"
+            'answers':               rec['answers'],           # List[str], e.g. ["Infographic Title", ...]
+
+            'pil_image_orig':        img_orig,                 # PIL.Image of size (W,H), e.g. (1024×768)
+            'image_resized':         img_tensor,               # torch.FloatTensor [3,512,512]
+            'image_width':           W,                        # int, original width e.g. 1024
+            'image_height':          H,                        # int, original height e.g. 768
+            'image_name':            rec['image_stem'],        # str, e.g. "0001"
+
+            'words':                 words,                    # List[str], len=Nw e.g. ["Infographic","Title","2025"]
+            'word_boxes_original':   boxes_orig,               # torch.LongTensor [Nw,4], original coords
+            'word_boxes_resized':    boxes_resized,            # torch.LongTensor [Nw,4], scaled to 512×512
+
+            'lines':                 lines,                    # List[str], len=Nl e.g. ["Title Here","2025 Data"]
+            'line_boxes':            line_boxes_orig,          # torch.LongTensor [Nl,4], original coords
+            'line_boxes_rs':         line_boxes_resized,       # torch.LongTensor [Nl,4], scaled to 512×512
+
+            
         }
 
         
@@ -171,12 +209,57 @@ class InfographicsVQADataset(Dataset):
         return sample_info
 
 # HERE THERE IS NO PADDING (CHECK IF SHOULD BE ADDED)
+# def singlepage_docvqa_collate_fn(batch):
+#     batch = {k: [dic[k] for dic in batch] for k in batch[0]}  # List of dictionaries to dict of lists.
+
+#     return batch
+
 def singlepage_docvqa_collate_fn(batch):
-    batch = {k: [dic[k] for dic in batch] for k in batch[0]}  # List of dictionaries to dict of lists.
+    B = len(batch)
+    # 1) PIL originals
+    pil_images = [b['pil_image_orig'] for b in batch]
+    # 2) stacked resized images
+    images     = torch.stack([b['image_resized'] for b in batch], 0)
 
-    return batch
+    # 3) word boxes + mask (use the same keys as in sample_info)
+    w_o = [b['word_boxes_original']    for b in batch]  # <-- original name
+    w_r = [b['word_boxes_resized']     for b in batch]
+    word_boxes_original = merge2d(w_o, pad_id=0)
+    word_boxes_resized = merge2d(w_r, pad_id=0)
+    word_mask          = mask1d(w_o, pad_id=0)
 
+    # 4) line boxes + mask
+    l_o = [b['line_boxes']     for b in batch]  # sample_info uses 'line_boxes'
+    l_r = [b['line_boxes_rs']  for b in batch]
+    line_boxes      = merge2d(l_o, pad_id=0)
+    line_boxes_rs   = merge2d(l_r, pad_id=0)
+    line_mask       = mask1d(l_o, pad_id=0)
 
+    return {
+      # images
+      'pil_images':    pil_images,               # list of PIL.Image
+      'images':        images,                   # torch.FloatTensor [B,3,512,512]
+      'image_widths':  [b['image_width']  for b in batch],
+      'image_heights': [b['image_height'] for b in batch],
+      'image_names':   [b['image_name']   for b in batch],
+
+      # QA
+      'question_id': [b['question_id'] for b in batch],
+      'questions':    [b['question']    for b in batch],
+      'answers':      [b['answers']     for b in batch],
+
+      # word‐OCR
+      'words':                   [b['words'] for b in batch],
+      'word_boxes_original':     word_boxes_original,  # [B, Nw_max, 4]
+      'word_boxes_resized':      word_boxes_resized,   # [B, Nw_max, 4]
+      'word_mask':               word_mask,            # [B, Nw_max]
+
+      # line‐OCR
+      'lines':                   [b['lines'] for b in batch],
+      'line_boxes':              line_boxes,           # [B, Nl_max, 4]
+      'line_boxes_rs':           line_boxes_rs,        # [B, Nl_max, 4]
+      'line_mask':               line_mask,            # [B, Nl_max]
+    }
 if __name__ == "__main__":
     # Update these paths if necessary
     config = {
@@ -199,23 +282,40 @@ if __name__ == "__main__":
         dataset_kwargs=dataset_kwargs,
         max_samples=3  # test with a small number of samples
     )
-    
+ 
     print("Dataset length:", len(dataset))
+    # 3) Iterate and print out each field’s shape/type:
     for i in range(len(dataset)):
         sample = dataset[i]
-        print(f"\nSample {i}:")
-        print("Question ID:", sample["question_id"])
-        print("Question:", sample["questions"])
-        print("Answers:", sample["answers"])
-        print("Words:", sample["words"])
-        print("Boxes:", sample["boxes"].shape)
-        print("Boxes:", sample["boxes"])
-        print("Lines:", sample["lines"])
-        print("Line Boxes shape:", sample["line_boxes"].shape)
-        print("Line Boxes shape:", sample["line_boxes"])
-        print("Image Name:", sample["image_name"])
-        print("Image Width:", sample["image_width"], "Height:", sample["image_height"])
-        # if "graphdoc_path" in sample:
-        #     print("GraphDoc Path:", sample["graphdoc_path"])
-        # Optionally, show the image (if you are using an interactive session)
-        # sample["images"][0].show()
+        print(f"\n=== Sample {i} ===")
+        print("question_id:        ", sample["question_id"])
+        print("question:           ", sample["question"])
+        print("answers:            ", sample["answers"])
+        print("pil_image_orig:     ", sample["pil_image_orig"])                         # PIL.Image.Image
+        print("image_resized.shape:", sample["image_resized"].shape)                   # torch.FloatTensor [3,512,512]
+        print("image_width/height: ", sample["image_width"], sample["image_height"])
+        print("image_name:         ", sample["image_name"])
+        print("words:              ", sample["words"])
+        print("word_boxes_original.shape:", sample["word_boxes_original"].shape)       # [Nw,4]
+        print("word_boxes_resized.shape: ", sample["word_boxes_resized"].shape)        # [Nw,4]
+        print("lines:              ", sample["lines"])
+        print("line_boxes.shape:   ", sample["line_boxes"].shape)                    # [Nl,4]
+        print("line_boxes_rs.shape:", sample["line_boxes_rs"].shape)                 # [Nl,4]
+        # Optionally display the image:
+        # sample["pil_image_orig"].show()
+    
+    from torch.utils.data import DataLoader
+    # Quick collate‐fn test:
+    loader = DataLoader(
+        dataset,
+        batch_size=2,
+        collate_fn=singlepage_docvqa_collate_fn
+    )
+    batch = next(iter(loader))
+    print("\n=== Collated batch keys/shapes ===")
+    for k,v in batch.items():
+        if torch.is_tensor(v):
+            print(f"{k:20s}: {tuple(v.shape)}")
+        else:
+            print(f"{k:20s}: {type(v)} (len={len(v)})")
+

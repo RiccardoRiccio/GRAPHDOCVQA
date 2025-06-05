@@ -3,6 +3,16 @@ changed:
     model.model.eval()
     to 
     model.eval()
+also:
+    # model.model.eval()
+    # model.spatial_embedding.eval()
+    # model.visual_embedding.eval()
+    to:
+    model.eval()
+also>
+    print(f"DEBUG: Model training mode: {model.model.training}")
+    to:
+    print(f"DEBUG: Model training mode: {model.training}")  
 add:
     model.model.eval()
     model.spatial_embedding.eval()
@@ -15,6 +25,8 @@ add:
 '''
 import os, time, datetime
 from tqdm import tqdm
+import sys
+sys.path.append("/home/rriccio/DocVQA_Project/MP-DocVQA-Framework")
 
 import numpy as np
 import torch
@@ -115,20 +127,21 @@ if __name__ == '__main__':
     config = load_config(args)
     start_time = time.time()
 
-    dataset = build_dataset(config, 'val')
+    dataset = build_dataset(config, 'val', max_samples=None)
     val_data_loader = DataLoader(dataset, batch_size=config['batch_size'], shuffle=False, collate_fn=singlepage_docvqa_collate_fn)
     print("Configuration:", config)
     model = build_model(config)
 
     # Set model and embeddings to evaluation mode
-    model.model.eval()
-    model.spatial_embedding.eval()
-    model.visual_embedding.eval()
-
+    # model.model.eval()
+    # model.spatial_embedding.eval()
+    # model.visual_embedding.eval()
+    model.eval()
+    print(f"DEBUG: Model training mode: {model.training}")
     # --- DEBUG: Confirm evaluation mode ---
-    print(f"DEBUG: Model training mode: {model.model.training}")  # Should print False
-    print(f"DEBUG: Spatial Embedding training mode: {model.spatial_embedding.training}")  # Should print False
-    print(f"DEBUG: Visual Embedding training mode: {model.visual_embedding.training}")  # Should print False
+    # print(f"DEBUG: Model training mode: {model.model.training}")  # Should print False
+    # print(f"DEBUG: Spatial Embedding training mode: {model.spatial_embedding.training}")  # Should print False
+    # print(f"DEBUG: Visual Embedding training mode: {model.visual_embedding.training}")  # Should print False
 
     logger = Logger(config=config)
     logger.log_model_parameters(model)
