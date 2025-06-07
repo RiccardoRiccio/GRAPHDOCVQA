@@ -169,18 +169,50 @@ class InfographicsVQADataset(Dataset):
         polys_lines = [L["boundingBox"] for L in lines_data]
         if polys_lines:
             line_boxes_orig = polys2bboxes(polys_lines)  # numpy [Nl,4]
+            # ← INSERT HERE: print out the raw polygons and the unscaled boxes
+            # print(f"DEBUG [Dataset __getitem__] for image '{stem}':")
+            # print(f"    • Raw polygons (polys_lines) = {polys_lines}")
+            # print(f"    • line_boxes_orig (pre‐scale) =\n{line_boxes_orig}")
             scale_wh = np.array([512/W,512/H,512/W,512/H],dtype=np.float32)
             line_boxes_resized = torch.from_numpy(
                 np.round(line_boxes_orig.astype(np.float32)*scale_wh).astype(np.int64)
             )
+
+            # ─────────── INSERT CLAMPING HERE ───────────
+            # Clamp every coordinate into [0, 511], so there are no negatives or ≥512:
+            line_boxes_resized = line_boxes_resized.clamp(min=0, max=511)
+            # ────────────────────────────────────────────
+
+
+            ######### CHANGES PRINT HERE #########
+            # ← INSERT HERE: if any resized box coordinate is negative or ≥512, print details
+            # if (line_boxes_resized < 0).any() or (line_boxes_resized >= 512).any():
+            #     print(f"DEBUG [Dataset __getitem__] BAD BOX for image '{rec['image_stem']}':")
+            #     print(f"    Original (pre-scale) boxes (numpy) =\n{line_boxes_orig}")
+            #     print(f"    Rescaled → line_boxes_resized (before clamp) =\n{line_boxes_resized}")
+            #     neg_mask = torch.where(line_boxes_resized < 0)
+            #     over_mask = torch.where(line_boxes_resized >= 512)
+            #     if neg_mask[0].numel() > 0:
+            #         print(f"    → Negative coords at indices (row, col) = {list(zip(neg_mask[0].tolist(), neg_mask[1].tolist()))}")
+            #     if over_mask[0].numel() > 0:
+            #         print(f"    → ≥512 coords at indices (row, col) = {list(zip(over_mask[0].tolist(), over_mask[1].tolist()))}")
+            # # ← INSERT HERE: immediately print the scaled boxes before any clamping
+            # print(f"    • line_boxes_resized (just after scaling, before clamp) =\n{line_boxes_resized}")
             line_boxes_orig = torch.from_numpy(line_boxes_orig)
+       
         else:
             print("Warning: No GraphDoc line-level boxes found")
             line_boxes_orig    = torch.zeros((0,4),dtype=torch.long)
             line_boxes_resized = torch.zeros((0,4),dtype=torch.long)
 
 
-
+        # ← INSERT HERE: debug prints for image and line_boxes_rs
+        # print(f"DEBUG [Dataset __getitem__]: image_resized.shape = {img_tensor.shape}, dtype = {img_tensor.dtype}")
+        # if line_boxes_resized.numel() > 0:
+        #     print(f"DEBUG [Dataset __getitem__]: line_boxes_rs shape = {line_boxes_resized.shape}, "
+        #           f"min = {line_boxes_resized.min().item()}, max = {line_boxes_resized.max().item()}")
+        # else:
+        #     print("DEBUG [Dataset __getitem__]: line_boxes_rs is EMPTY")
 
         sample_info = {
             'question_id':           rec['question_id'],       # str, e.g. "12345"

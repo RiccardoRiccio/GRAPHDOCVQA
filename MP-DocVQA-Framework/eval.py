@@ -65,6 +65,31 @@ def evaluate(data_loader, model, evaluator, **kwargs):
 
     for batch_idx, batch in enumerate(tqdm(data_loader)):
         bs = len(batch['question_id'])
+        # ← INSERT HERE: inspect the batch before forwarding
+        # imgs = batch["images"]  # should be [B, 3, 512, 512]
+        # boxes_rs = batch["line_boxes_rs"]  # should be [B, Nl_max, 4]
+        # print(f"\nDEBUG [eval → batch {batch_idx}]: images.shape = {imgs.shape}, device = {imgs.device}")
+        # if boxes_rs.numel() > 0:
+        #     print(f"DEBUG [eval → batch {batch_idx}]: line_boxes_rs.shape = {boxes_rs.shape}, "
+        #           f"min = {boxes_rs.min().item()}, max = {boxes_rs.max().item()}")
+        # else:
+        #     print(f"DEBUG [eval → batch {batch_idx}]: line_boxes_rs is EMPTY")
+        
+        # ← INSERT HERE: check each sample in this batch for out-of-range boxes
+        # img_names = batch["image_names"]     # ← Add this line so img_names is defined
+        # for i in range(bs):
+        #     single_boxes = boxes_rs[i]  # [Nl_i, 4]
+        #     if single_boxes.numel() > 0:
+        #         neg_mask = torch.where(single_boxes < 0)
+        #         over_mask = torch.where(single_boxes >= 512)
+        #         if neg_mask[0].numel() > 0 or over_mask[0].numel() > 0:
+        #             print(f"    → [BATCH {batch_idx} / SAMPLE {i}] image_name = '{img_names[i]}' has BAD BOXES:")
+        #             print(f"        single_boxes = {single_boxes}")
+        #             if neg_mask[0].numel() > 0:
+        #                 print(f"        * Negative coords at (row, col) = {list(zip(neg_mask[0].tolist(), neg_mask[1].tolist()))}")
+        #             if over_mask[0].numel() > 0:
+        #                 print(f"        * ≥512 coords at (row, col) = {list(zip(over_mask[0].tolist(), over_mask[1].tolist()))}")
+
         with torch.no_grad():
             outputs, pred_answers, pred_answer_page, answer_conf = model.forward(batch, return_pred_answer=True)
 
@@ -131,6 +156,13 @@ if __name__ == '__main__':
     val_data_loader = DataLoader(dataset, batch_size=config['batch_size'], shuffle=False, collate_fn=singlepage_docvqa_collate_fn)
     print("Configuration:", config)
     model = build_model(config)
+
+    # ← INSERT HERE: print device for GraphDoc and T5 submodules
+    # print("DEBUG [eval.py]: GraphDoc parameters on device →",
+    #       next(model.graphdoc.parameters()).device)
+    # print("DEBUG [eval.py]: T5 parameters on device →",
+    #       next(model.t5.parameters()).device)
+    # print(f"DEBUG [eval.py]: model.training = {model.training}")
 
     # Set model and embeddings to evaluation mode
     # model.model.eval()

@@ -10,6 +10,7 @@ TO CHECK:
 - check if projection layer is trained and if should go to .eval() at some point since dropout in it
 - UNFREEZE GRAPHDOC AND USE DIFFERENT LR FOR T5 AND GDOC
 - T5 should automatically do teacher-forcing when labels are passed, but during inference, if you do not use proper decoder_start_token_id, you can get poor generations.
+- add dataparallel
 '''
 import sys
 import os
@@ -356,7 +357,10 @@ class GRAPHDOCT5VQA(nn.Module):
         # print(f"[process_batch_data] final bboxes.shape = {bboxes.shape}")
 
         # print("[process_batch_data] Returning dict for GraphDoc call\n")
-
+        # ← INSERT HERE: debug prints just before returning to forward()
+        # print(f"DEBUG [process_batch_data → returning]: images.shape = {images.shape}, device = {images.device}")
+        # print(f"DEBUG [process_batch_data → returning]: bboxes.shape = {bboxes.shape}, "
+        #       f"min = {bboxes.min().item()}, max = {bboxes.max().item()}")
         return {
             "image": images,               # [B,3,512,512]
             "inputs_embeds": inputs_embeds,
@@ -391,6 +395,13 @@ class GRAPHDOCT5VQA(nn.Module):
         # print("[forward] Calling process_batch_data(...)")
         graphdoc_input = self.process_batch_data(batch_data)
         # print("[forward] Running GraphDoc encoder…")
+
+        # ← INSERT HERE: inspect exactly what will be passed to self.graphdoc
+        # img_tensor = graphdoc_input["image"]
+        # bboxes    = graphdoc_input["bbox"]
+        # print(f"DEBUG [forward → calling graphdoc]: image.shape = {img_tensor.shape}, device = {img_tensor.device}")
+        # print(f"DEBUG [forward → calling graphdoc]: bbox.shape = {bboxes.shape}, "
+        #       f"min = {bboxes.min().item()}, max = {bboxes.max().item()}")
         encoder_output = self.graphdoc(**graphdoc_input)
         node_embeds = encoder_output.last_hidden_state  # [B, L_tot, H_sent]
         # print(f"[forward] GraphDoc encoder_output.last_hidden_state.shape = {node_embeds.shape}")
