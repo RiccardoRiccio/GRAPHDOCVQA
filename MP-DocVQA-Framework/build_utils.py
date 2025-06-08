@@ -9,29 +9,72 @@ changed build?optimizer
 import torch
 import transformers
 
-from transformers import get_scheduler
+from transformers import get_scheduler, AdamW
 
 # print("=== Running build_utils from:", __file__)
 
 
+
 def build_optimizer(model, length_train_loader, config):
-    optimizer_class = getattr(transformers, 'AdamW')
+    # 1) extract param groups
+    proj_params    = list(model.projection.parameters())
+    t5_decoder     = list(model.t5.decoder.parameters())
 
-    # ✅ Now `.parameters()` works correctly
-    optimizer = optimizer_class(model.parameters(), lr=float(config['lr']))
+    # optional: if you’ve unfreezed GraphDoc:
+    # graphdoc_params = list(model.graphdoc.parameters())
 
-     # --- Print the parameters present in the optimizer ---
+    lr_proj = float(config['lr_projection'])
+    lr_t5   = float(config['lr_t5_decoder'])
+
+    # 2) build optimizer with distinct lrs
+    optimizer = AdamW(
+        [
+            { "params": proj_params,           "lr": lr_proj     },
+            { "params": t5_decoder, "lr": lr_t5    },
+            # { "params": graphdoc_params,     "lr": 1e-5    },  # uncomment if unfreezing GraphDoc
+        ],
+        weight_decay=1e-2
+    )
+
+
+   # --- Now print EVERY parameter in the model ---
+    # print("=== All model parameters and their trainable status ===")
+    # for name, p in model.named_parameters():
+    #     status    = "Trainable" if p.requires_grad else "Frozen"
+    #     shape_str = str(tuple(p.shape))
+    #     print(f"{name:60}  {shape_str:15}  {status}")
+    # print("=== End of full parameter audit ===")
+    
+
+    # --- Print the parameters present in the optimizer ---
     print("=== Parameters in the optimizer ===")
-    # Build a mapping of parameter id -> name from the entire model
-    param_names = {id(param): name for name, param in model.named_parameters()}
+    param_names = {id(p): n for n, p in model.named_parameters()}
     for group_idx, param_group in enumerate(optimizer.param_groups):
         print(f"Parameter Group {group_idx}:")
-        for param in param_group['params']:
-            param_name = param_names.get(id(param), "Unknown")
-            print(f"  {param_name}: {param.shape}")
-            trainable_status = "Trainable" if param.requires_grad else "Frozen"
-            print(f"  {param_name}: {param.shape}, {trainable_status}")
-    print("=== End of parameters in the optimizer ===")
+        for p in param_group['params']:
+            name   = param_names.get(id(p), "Unknown")
+            status = "Trainable" if p.requires_grad else "Frozen"
+            # convert tuple to string before applying width specifier
+            shape_str = str(tuple(p.shape))
+            print(f"  {name:60}  {shape_str:15}  {status}")
+    print("=== End of parameters in the optimizer ===\n")
+
+    # --- Summary counts ---
+    #  a) within optimizer
+    opt_params     = [p for g in optimizer.param_groups for p in g['params']]
+    total_opt      = sum(p.numel() for p in opt_params)
+    trainable_opt  = sum(p.numel() for p in opt_params if p.requires_grad)
+    frozen_opt     = total_opt - trainable_opt
+    print(f"Optimizer params:   total={total_opt:,}   trainable={trainable_opt:,}   frozen={frozen_opt:,}")
+    #  b) whole model
+    all_params      = list(model.parameters())
+    total_all       = sum(p.numel() for p in all_params)
+    trainable_all   = sum(p.numel() for p in all_params if p.requires_grad)
+    frozen_all      = total_all - trainable_all
+    print(f"Model-wide params:  total={total_all:,}   trainable={trainable_all:,}   frozen={frozen_all:,}\n")
+
+    
+
 
     num_training_steps = config['train_epochs'] * length_train_loader
     lr_scheduler = get_scheduler(
@@ -39,6 +82,34 @@ def build_optimizer(model, length_train_loader, config):
     )
 
     return optimizer, lr_scheduler
+
+# THIS OPTIMIZER WORKS BUT USE ONE LR FOR EACH MODEL-S PARAMETERS
+
+# def build_optimizer(model, length_train_loader, config):
+#     optimizer_class = getattr(transformers, 'AdamW')
+
+#     # ✅ Now `.parameters()` works correctly
+#     optimizer = optimizer_class(model.parameters(), lr=float(config['lr']))
+
+#      # --- Print the parameters present in the optimizer ---
+#     print("=== Parameters in the optimizer ===")
+#     # Build a mapping of parameter id -> name from the entire model
+#     param_names = {id(param): name for name, param in model.named_parameters()}
+#     for group_idx, param_group in enumerate(optimizer.param_groups):
+#         print(f"Parameter Group {group_idx}:")
+#         for param in param_group['params']:
+#             param_name = param_names.get(id(param), "Unknown")
+#             print(f"  {param_name}: {param.shape}")
+#             trainable_status = "Trainable" if param.requires_grad else "Frozen"
+#             print(f"  {param_name}: {param.shape}, {trainable_status}")
+#     print("=== End of parameters in the optimizer ===")
+
+#     num_training_steps = config['train_epochs'] * length_train_loader
+#     lr_scheduler = get_scheduler(
+#         name="linear", optimizer=optimizer, num_warmup_steps=config['warmup_iterations'], num_training_steps=num_training_steps
+#     )
+
+#     return optimizer, lr_scheduler
 
 
 

@@ -1,4 +1,4 @@
-
+# IN LOGGER WE NEED TO CHANGE THAT NOW WE HAVE DIFFERENT LR FOR EACH MODEL-S PARAMETERS
 model_name: GRAPHDOCT5VQA
 # save_dir: /data2/users/rriccio/save_vt5_gdoc_weigh_t5/
 save_dir: /data2/users/rriccio/save_GRAPHDOCT5VQA/
@@ -9,6 +9,9 @@ device: cuda
 data_parallel: True
 
 training_parameters:
+  lr_projection: 2e-4
+  lr_t5_decoder: 5e-5
+  # lr_t5_lm_head: 5e-5
   lr: 2e-5  # 2e-4
   batch_size: 16
   train_epochs: 10

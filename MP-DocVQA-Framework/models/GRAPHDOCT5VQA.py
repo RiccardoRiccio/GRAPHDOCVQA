@@ -202,7 +202,9 @@ class GRAPHDOCT5VQA(nn.Module):
             p.requires_grad = False
         print("[GRAPHDOCT5VQA __init__] Frozen T5 encoder parameters; decoder+lm_head remain trainable")
 
-
+        for p in self.t5.shared.parameters():
+            p.requires_grad = True
+        print("[GRAPHDOCT5VQA __init__] Unfrozen T5 shared embedding layer")
         
 
         # ──────────── 4) Optional projection from GraphDoc hidden_size → T5 d_model ────────────
@@ -472,6 +474,7 @@ class GRAPHDOCT5VQA(nn.Module):
                     gen_out = self.t5.generate(
                         encoder_outputs=enc_out_for_t5,
                         attention_mask=enc_attn_mask,
+                        decoder_start_token_id=self.t5.config.decoder_start_token_id,
                         max_length=32,
                         num_beams=4,
                         early_stopping=True,
@@ -507,6 +510,7 @@ class GRAPHDOCT5VQA(nn.Module):
             gen_out = self.t5.generate(
                 encoder_outputs=enc_out_for_t5,
                 attention_mask=enc_attn_mask,
+                decoder_start_token_id=self.t5.config.decoder_start_token_id, 
                 max_length=32,
                 num_beams=4,
                 early_stopping=True,
@@ -547,74 +551,74 @@ class GRAPHDOCT5VQA(nn.Module):
                 }
 
 
-def create_model(config) -> GRAPHDOCT5VQA:
-    """
-    Factory function: returns a GRAPHDOCT5VQA on GPU (if available).
-    This is what `build_model(config)` will ultimately call.
-    """
-    model = GRAPHDOCT5VQA(config)
-    return model
+# def create_model(config) -> GRAPHDOCT5VQA:
+#     """
+#     Factory function: returns a GRAPHDOCT5VQA on GPU (if available).
+#     This is what `build_model(config)` will ultimately call.
+#     """
+#     model = GRAPHDOCT5VQA(config)
+#     return model
 
 
-# ────────────────────────────────────────────────────────────────────────────────
-# Quick sanity‐check (run as script)
-# ────────────────────────────────────────────────────────────────────────────────
-if __name__ == "__main__":
-    import torch
-    from torch.utils.data import DataLoader
-    from datasets.InfographicVQA_GRAPHDOC import InfographicsVQADataset, singlepage_docvqa_collate_fn
+# # ────────────────────────────────────────────────────────────────────────────────
+# # Quick sanity‐check (run as script)
+# # ────────────────────────────────────────────────────────────────────────────────
+# if __name__ == "__main__":
+#     import torch
+#     from torch.utils.data import DataLoader
+#     from datasets.InfographicVQA_GRAPHDOC import InfographicsVQADataset, singlepage_docvqa_collate_fn
 
 
-    print("[main] Starting sanity check")
+#     print("[main] Starting sanity check")
 
-    # Example config (update paths as necessary)
-    config = {
-        "graphdoc_ckpt": "/data2/users/rriccio/pretrained_model/graphdoc",
-        "sentence_bert_path": "/data2/users/rriccio/pretrained_model/sentence-bert",
-        "t5_name": "t5-base",
-        "add_projection": True,
-    }
+#     # Example config (update paths as necessary)
+#     config = {
+#         "graphdoc_ckpt": "/data2/users/rriccio/pretrained_model/graphdoc",
+#         "sentence_bert_path": "/data2/users/rriccio/pretrained_model/sentence-bert",
+#         "t5_name": "t5-base",
+#         "add_projection": True,
+#     }
 
-    # Create dataset & DataLoader (for debug)
-    dataset = InfographicsVQADataset(
-        imdb_dir="/data2/users/rriccio/infographic/infographicsvqa_qas",
-        images_dir="/data2/users/rriccio/infographic/infographicsvqa_images",
-        ocr_dir="/data2/users/rriccio/infographic/infographicsvqa_ocr",
-        ocr_graphdoc_dir="/data2/users/rriccio/easyocr_infographic",
-        split="train",
-        dataset_kwargs={"ocr_dir": "/data2/users/rriccio/infographic/infographicsvqa_ocr"},
-        max_samples=4
-    )
-    loader = DataLoader(dataset, batch_size=2, shuffle=False, collate_fn=singlepage_docvqa_collate_fn)
+#     # Create dataset & DataLoader (for debug)
+#     dataset = InfographicsVQADataset(
+#         imdb_dir="/data2/users/rriccio/infographic/infographicsvqa_qas",
+#         images_dir="/data2/users/rriccio/infographic/infographicsvqa_images",
+#         ocr_dir="/data2/users/rriccio/infographic/infographicsvqa_ocr",
+#         ocr_graphdoc_dir="/data2/users/rriccio/easyocr_infographic",
+#         split="train",
+#         dataset_kwargs={"ocr_dir": "/data2/users/rriccio/infographic/infographicsvqa_ocr"},
+#         max_samples=4
+#     )
+#     loader = DataLoader(dataset, batch_size=2, shuffle=False, collate_fn=singlepage_docvqa_collate_fn)
 
-    # Instantiate model
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = GRAPHDOCT5VQA(config).to(device)
+#     # Instantiate model
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#     model = GRAPHDOCT5VQA(config).to(device)
 
-    # SANITY‐CHECK #1: One training‐style forward (with teacher forcing)
-    model.train()
-    for batch in loader:
-        # Move tensors to GPU
-        batch["images"] = batch["images"].to(device)
-        batch["line_boxes_rs"] = batch["line_boxes_rs"].to(device)
-        batch["line_mask"] = batch["line_mask"].to(device)
+#     # SANITY‐CHECK #1: One training‐style forward (with teacher forcing)
+#     model.train()
+#     for batch in loader:
+#         # Move tensors to GPU
+#         batch["images"] = batch["images"].to(device)
+#         batch["line_boxes_rs"] = batch["line_boxes_rs"].to(device)
+#         batch["line_mask"] = batch["line_mask"].to(device)
 
-        # Call forward without passing target_answers explicitly:
-        outputs, pred_answers, _, confidences = model.forward(batch, return_pred_answer=True)
-        # print("Batch loss:", outputs.loss.item())
-        # print("Predictions:", pred_answers)
-        # print("Confidences:", confidences)
-        break
+#         # Call forward without passing target_answers explicitly:
+#         outputs, pred_answers, _, confidences = model.forward(batch, return_pred_answer=True)
+#         # print("Batch loss:", outputs.loss.item())
+#         # print("Predictions:", pred_answers)
+#         # print("Confidences:", confidences)
+#         break
 
-    # SANITY‐CHECK #2: One inference‐style forward
-    model.eval()
-    with torch.no_grad():
-        for batch in loader:
-            batch["images"] = batch["images"].to(device)
-            batch["line_boxes_rs"] = batch["line_boxes_rs"].to(device)
-            batch["line_mask"] = batch["line_mask"].to(device)
+#     # SANITY‐CHECK #2: One inference‐style forward
+#     model.eval()
+#     with torch.no_grad():
+#         for batch in loader:
+#             batch["images"] = batch["images"].to(device)
+#             batch["line_boxes_rs"] = batch["line_boxes_rs"].to(device)
+#             batch["line_mask"] = batch["line_mask"].to(device)
 
-            _, pred_answers, _, confidences = model.forward(batch, return_pred_answer=True)
-            print("Eval Predictions:", pred_answers)
-            print("Eval Confidences:", confidences)
-            break
+#             _, pred_answers, _, confidences = model.forward(batch, return_pred_answer=True)
+#             print("Eval Predictions:", pred_answers)
+#             print("Eval Confidences:", confidences)
+#             break
