@@ -11,6 +11,9 @@ TO CHECK:
 - UNFREEZE GRAPHDOC AND USE DIFFERENT LR FOR T5 AND GDOC
 - T5 should automatically do teacher-forcing when labels are passed, but during inference, if you do not use proper decoder_start_token_id, you can get poor generations.
 - add dataparallel
+
+
+
 '''
 import sys
 import os
@@ -173,12 +176,17 @@ class GRAPHDOCT5VQA(nn.Module):
         # ──────────── 1) Load + freeze GraphDoc encoder ────────────
         print("[GRAPHDOCT5VQA __init__] Loading GraphDocConfig and GraphDocForEncode…")
         self.gd_cfg = GraphDocConfig.from_pretrained(graphdoc_model_path)
-        self.graphdoc = GraphDocForEncode.from_pretrained(graphdoc_model_path, config=self.gd_cfg).eval()
+        self.graphdoc = GraphDocForEncode.from_pretrained(graphdoc_model_path, config=self.gd_cfg)
         num_graphdoc_params = sum(p.numel() for p in self.graphdoc.parameters())
         print(f"[GRAPHDOCT5VQA __init__] Loaded GraphDoc; #params = {num_graphdoc_params:,}")
-        for p in self.graphdoc.parameters():
-            p.requires_grad = False
-        print("[GRAPHDOCT5VQA __init__] Frozen all GraphDoc parameters")
+
+        # DEBUG: list all public attributes in GraphDocConfig
+        cfg_fields = [n for n in dir(self.gd_cfg) if not n.startswith("_")]
+        print(f"[GRAPHDOCT5VQA __init__] GraphDocConfig fields:\n  {cfg_fields}")
+
+        # for p in self.graphdoc.parameters():
+        #     p.requires_grad = False
+        # print("[GRAPHDOCT5VQA __init__] Frozen all GraphDoc parameters")
 
 
         # ──────────── 2) Load + freeze Sentence-BERT (for questions & lines) ────────────
@@ -328,6 +336,9 @@ class GRAPHDOCT5VQA(nn.Module):
             else:
                 sample_embeds = question_embed  # [1, H_sent]
                 # print(f"  [process_batch_data] sample_embeds (just question) shape = {sample_embeds.shape}")
+            
+        
+
 
             all_node_embeds.append(sample_embeds)   # length = 1 + L_i
             all_node_bboxes.append(sample_boxes)    # shape = [1 + L_i, 4]

@@ -12,7 +12,9 @@ import numpy as np
 from torch.nn.utils.rnn import pad_sequence
 import os  # Only if you really need it elsewhere
 
-
+# ─── Ensure every document has at least this many OCR lines ───
+MIN_OCR_LINES = 3
+# ───────────────────────────────────────────────────────────────
 
 def polys2bboxes(polys):
     """
@@ -66,6 +68,8 @@ class InfographicsVQADataset(Dataset):
             dataset_kwargs: (unused here but kept for compatibility)
             max_samples (int, optional): If provided, limits the number of samples.
         """
+        
+
         # Use imdb_dir to locate the QA JSON file.
         self.qa_dir = Path(imdb_dir)
         self.ocr_dir = Path(ocr_dir)
@@ -76,6 +80,10 @@ class InfographicsVQADataset(Dataset):
         # Load QA pairs from the corresponding JSON file.
         qa_filename = f'infographicsVQA_{split}_v1.0.json'
         qa_path = self.qa_dir / qa_filename
+
+
+        # Count how many times we pad the OCR lines when they are less than MIN_OCR_LINES (so each document has at least 3 lines)
+        self.pad_count = 0
 
         # If the file doesn't exist and we're in validation mode, try the alternative filename.
         if not qa_path.exists() and split == "val":
@@ -166,6 +174,7 @@ class InfographicsVQADataset(Dataset):
         # Get the "lines" key from the recognitionResults.
         lines_data = ocr_graphdoc_data["recognitionResults"][0].get("lines", [])
         lines = [L["text"] for L in lines_data]
+        # print(f"[DEBUG Dataset] image='{stem}'  #OCR lines={len(lines)}")
         polys_lines = [L["boundingBox"] for L in lines_data]
         if polys_lines:
             line_boxes_orig = polys2bboxes(polys_lines)  # numpy [Nl,4]
@@ -204,6 +213,24 @@ class InfographicsVQADataset(Dataset):
             print("Warning: No GraphDoc line-level boxes found")
             line_boxes_orig    = torch.zeros((0,4),dtype=torch.long)
             line_boxes_resized = torch.zeros((0,4),dtype=torch.long)
+        
+        # ─── PAD TO MIN_OCR_LINES SO EACH DOCUMENTS HAS AT LEAST 3 LINES (NODE) (BESIDE THE GLOBAL NODE) ───
+        if len(lines) < MIN_OCR_LINES:
+            need = MIN_OCR_LINES - len(lines)
+            print(f"[Dataset PAD] image='{stem}' had only {len(lines)} lines → padding {need} dummy lines")
+            self.pad_count += 1
+
+            # pad the text list
+            lines += [""] * need
+
+            # pad the box tensors
+            pad_orig = torch.zeros((need, 4), dtype=line_boxes_orig.dtype)
+            pad_res  = torch.zeros((need, 4), dtype=line_boxes_resized.dtype)
+            line_boxes_orig    = torch.cat([line_boxes_orig,    pad_orig], dim=0)
+            line_boxes_resized = torch.cat([line_boxes_resized, pad_res ], dim=0)
+
+# ─────────────────────────────
+
 
 
         # ← INSERT HERE: debug prints for image and line_boxes_rs

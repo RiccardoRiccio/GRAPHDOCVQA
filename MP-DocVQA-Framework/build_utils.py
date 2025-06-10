@@ -19,18 +19,22 @@ def build_optimizer(model, length_train_loader, config):
     # 1) extract param groups
     proj_params    = list(model.projection.parameters())
     t5_decoder     = list(model.t5.decoder.parameters())
+    graphdoc_params = list(model.graphdoc.parameters())
+    
 
     # optional: if you’ve unfreezed GraphDoc:
     # graphdoc_params = list(model.graphdoc.parameters())
 
     lr_proj = float(config['lr_projection'])
     lr_t5   = float(config['lr_t5_decoder'])
+    lr_graphdoc = float(config['lr_graphdoc'])   
 
     # 2) build optimizer with distinct lrs
     optimizer = AdamW(
         [
             { "params": proj_params,           "lr": lr_proj     },
             { "params": t5_decoder, "lr": lr_t5    },
+            {"params": graphdoc_params,"lr": lr_graphdoc}, 
             # { "params": graphdoc_params,     "lr": 1e-5    },  # uncomment if unfreezing GraphDoc
         ],
         weight_decay=1e-2
@@ -47,31 +51,31 @@ def build_optimizer(model, length_train_loader, config):
     
 
     # --- Print the parameters present in the optimizer ---
-    print("=== Parameters in the optimizer ===")
-    param_names = {id(p): n for n, p in model.named_parameters()}
-    for group_idx, param_group in enumerate(optimizer.param_groups):
-        print(f"Parameter Group {group_idx}:")
-        for p in param_group['params']:
-            name   = param_names.get(id(p), "Unknown")
-            status = "Trainable" if p.requires_grad else "Frozen"
-            # convert tuple to string before applying width specifier
-            shape_str = str(tuple(p.shape))
-            print(f"  {name:60}  {shape_str:15}  {status}")
-    print("=== End of parameters in the optimizer ===\n")
+    # print("=== Parameters in the optimizer ===")
+    # param_names = {id(p): n for n, p in model.named_parameters()}
+    # for group_idx, param_group in enumerate(optimizer.param_groups):
+    #     print(f"Parameter Group {group_idx}:")
+    #     for p in param_group['params']:
+    #         name   = param_names.get(id(p), "Unknown")
+    #         status = "Trainable" if p.requires_grad else "Frozen"
+    #         # convert tuple to string before applying width specifier
+    #         shape_str = str(tuple(p.shape))
+    #         print(f"  {name:60}  {shape_str:15}  {status}")
+    # print("=== End of parameters in the optimizer ===\n")
 
-    # --- Summary counts ---
-    #  a) within optimizer
-    opt_params     = [p for g in optimizer.param_groups for p in g['params']]
-    total_opt      = sum(p.numel() for p in opt_params)
-    trainable_opt  = sum(p.numel() for p in opt_params if p.requires_grad)
-    frozen_opt     = total_opt - trainable_opt
-    print(f"Optimizer params:   total={total_opt:,}   trainable={trainable_opt:,}   frozen={frozen_opt:,}")
-    #  b) whole model
-    all_params      = list(model.parameters())
-    total_all       = sum(p.numel() for p in all_params)
-    trainable_all   = sum(p.numel() for p in all_params if p.requires_grad)
-    frozen_all      = total_all - trainable_all
-    print(f"Model-wide params:  total={total_all:,}   trainable={trainable_all:,}   frozen={frozen_all:,}\n")
+    # # --- Summary counts ---
+    # #  a) within optimizer
+    # opt_params     = [p for g in optimizer.param_groups for p in g['params']]
+    # total_opt      = sum(p.numel() for p in opt_params)
+    # trainable_opt  = sum(p.numel() for p in opt_params if p.requires_grad)
+    # frozen_opt     = total_opt - trainable_opt
+    # print(f"Optimizer params:   total={total_opt:,}   trainable={trainable_opt:,}   frozen={frozen_opt:,}")
+    # #  b) whole model
+    # all_params      = list(model.parameters())
+    # total_all       = sum(p.numel() for p in all_params)
+    # trainable_all   = sum(p.numel() for p in all_params if p.requires_grad)
+    # frozen_all      = total_all - trainable_all
+    # print(f"Model-wide params:  total={total_all:,}   trainable={trainable_all:,}   frozen={frozen_all:,}\n")
 
     
 

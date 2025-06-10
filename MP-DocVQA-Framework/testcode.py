@@ -8,11 +8,11 @@ import matplotlib.pyplot as plt
 
 # 1) Specify your images directory and target save path
 images_dir = Path("/data2/users/rriccio/infographic/infographicsvqa_images")
-target_save_path = Path("/home/rriccio/DocVQA_Project/MP-DocVQA-Framework/36186.png")
+target_save_path = Path("/home/rriccio/DocVQA_Project/MP-DocVQA-Framework/70572.png")
 
 # 2) Locate the file (try common extensions)
 for ext in (".jpeg", ".jpg", ".png"):
-    img_path = images_dir / f"36186{ext}"
+    img_path = images_dir / f"70572{ext}"
     if img_path.exists():
         break
 else:
@@ -23,7 +23,7 @@ img = Image.open(img_path).convert("RGB")
 plt.figure(figsize=(6,6))
 plt.imshow(img)
 plt.axis("off")
-plt.title(f"Original '36186' ({img.size[0]}×{img.size[1]})")
+plt.title(f"Original '70572' ({img.size[0]}×{img.size[1]})")
 plt.show()
 
 # 4) Save to the specified path
