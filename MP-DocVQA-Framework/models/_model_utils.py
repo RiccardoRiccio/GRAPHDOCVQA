@@ -2,6 +2,8 @@ import random, re
 import torch
 import numpy as np
 from utils import correct_alignment
+import sys
+sys.path.append("/home/rriccio/DocVQA_Project/MP-DocVQA-Framework")
 
 
 def get_start_end_idx(model, encoding, context, context_encoding, answers, context_page_char_correspondent, page_retrieval, sep_token_id, pad_token_id, ignore_id, device):

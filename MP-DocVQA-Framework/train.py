@@ -8,6 +8,12 @@ changed:
 change:
 model.model.train() to model.train()
 
+CHANGED:
+     # ─── PRINT THE NUMBER OF PADDED SAMPLES  FOR INFOGRAPHICVQA_GRAPHDOC  TO CHECK NUMBER OF SMALL DOCUMENTS WHO GET PADDED TO BE AT LEAST 3 LINES ───
+        print(f"[INFO] Epoch {epoch_ix}: padded samples = {train_dataset.pad_count}")
+        train_dataset.pad_count = 0
+        # ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
 '''
 from tqdm import tqdm
 
@@ -15,11 +21,11 @@ import numpy as np
 
 import torch
 from torch.utils.data import DataLoader
-# from datasets.InfographicVQA_GRAPHDOC import InfographicsVQADataset, singlepage_docvqa_collate_fn
+from datasets.InfographicVQA_GRAPHDOC import InfographicsVQADataset, singlepage_docvqa_collate_fn
 # from datasets.InfographicVQA import InfographicsVQADataset, singlepage_docvqa_collate_fn
 # from datasets.SP_DocVQA import SPDocVQA, singlepage_docvqa_collate_fn
 # from datasets.SP_DocVQA_GDOC import SPDocVQA_GDOC, singlepage_docvqa_collate_fn
-from datasets.SP_DocVQA_GDOC import SPDocVQA_GDOC, singlepage_docvqa_collate_fn
+# from datasets.SP_DocVQA_GDOC import SPDocVQA_GDOC, singlepage_docvqa_collate_fn
 # from datasets.SP_DocVQA_LAY_GDOC import SPDocVQA_LAY_GDOC, singlepage_docvqa_collate_fn
 from models.Longformer import Longformer
 from eval import evaluate
@@ -42,7 +48,6 @@ def train_epoch(data_loader, model, optimizer, lr_scheduler, evaluator, logger, 
         loss.backward()
         optimizer.step()
         lr_scheduler.step()
-
         optimizer.zero_grad()
 
         metric = evaluator.get_metrics(gt_answers, pred_answers)
@@ -87,8 +92,8 @@ def train(model, **kwargs):
     logger = Logger(config=kwargs)
     logger.log_model_parameters(model)
 
-    train_dataset = build_dataset(config, 'train', max_samples=20)
-    val_dataset   = build_dataset(config, 'val', max_samples=5)
+    train_dataset = build_dataset(config, 'train', max_samples=None)
+    val_dataset   = build_dataset(config, 'val', max_samples=None)
 
     # g = torch.Generator()
     # g.manual_seed(kwargs['seed'])
@@ -110,6 +115,13 @@ def train(model, **kwargs):
     for epoch_ix in range(epochs):
         logger.current_epoch = epoch_ix
         train_epoch(train_data_loader, model, optimizer, lr_scheduler, evaluator, logger, **kwargs)
+
+        # ─── PRINT THE NUMBER OF PADDED SAMPLES  FOR INFOGRAPHICVQA_GRAPHDOC  TO CHECK NUMBER OF SMALL DOCUMENTS WHO GET PADDED TO BE AT LEAST 3 LINES ───
+        print(f"[INFO] Epoch {epoch_ix}: padded samples = {train_dataset.pad_count}")
+        train_dataset.pad_count = 0
+        # ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+
         accuracy, anls, ret_prec, _, _ = evaluate(val_data_loader, model, evaluator, return_scores_by_sample=False, return_pred_answers=False, **kwargs)
 
         is_updated = evaluator.update_global_metrics(accuracy, anls, epoch_ix)
