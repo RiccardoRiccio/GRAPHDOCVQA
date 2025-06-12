@@ -75,11 +75,7 @@ def train_epoch(data_loader, model, optimizer, lr_scheduler, evaluator, logger, 
     # return total_accuracies, total_anls, answers
 
 
-# def seed_worker(worker_id):
-#     worker_seed = torch.initial_seed() % 2 ** 32
-#     np.random.seed(worker_seed)
-#     np.seed(worker_seed)
-
+#  this code works for 1 gpu:
 
 def train(model, **kwargs):
 
@@ -150,3 +146,89 @@ if __name__ == '__main__':
 
     train(model, **config)
 
+
+
+# def train(model, **kwargs):
+
+#     epochs = kwargs['train_epochs']
+#     # device = kwargs['device']
+#     batch_size = kwargs['batch_size']
+#     seed_everything(kwargs['seed'])
+
+#     evaluator = Evaluator(case_sensitive=False)
+#     logger = Logger(config=kwargs)
+#     logger.log_model_parameters(model)
+
+#     train_dataset = build_dataset(config, 'train', max_samples=None)
+#     val_dataset   = build_dataset(config, 'val', max_samples=None)
+
+#     # g = torch.Generator()
+#     # g.manual_seed(kwargs['seed'])
+
+#     train_data_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, collate_fn=singlepage_docvqa_collate_fn)
+#     val_data_loader   = DataLoader(val_dataset, batch_size=config['batch_size'], shuffle=False, collate_fn=singlepage_docvqa_collate_fn)
+#     # train_data_loader = DataLoader(train_dataset, batch_size=config['batch_size'], shuffle=True, collate_fn=singledocvqa_collate_fn, worker_init_fn=seed_worker, generator=g)
+#     # val_data_loader   = DataLoader(val_dataset, batch_size=config['batch_size'],  shuffle=False, collate_fn=singledocvqa_collate_fn, worker_init_fn=seed_worker, generator=g)
+
+#     logger.len_dataset = len(train_data_loader)
+    
+
+#     # ------------------------------------------------------------------
+#     # ── device + optimiser + wrapping ─────────────────────────
+#     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+#     model  = model.to(device)
+
+#     # build optimiser **before** wrapping
+#     optimizer, lr_scheduler = build_optimizer(
+#         model,
+#         length_train_loader=len(train_data_loader),
+#         config=kwargs
+#     )
+
+#     # wrap only if >1 GPU
+#     if torch.cuda.device_count() > 1:
+#         print(f"Using {torch.cuda.device_count()} GPUs via DataParallel")
+#         model = torch.nn.DataParallel(model)
+#     else:
+#         print("Using a single GPU")
+#     # ───────────────────────────────────────────────────────────
+#     # ------------------------------------------------------------------
+
+#     # Put the (possibly-wrapped) network in training mode once, here
+#     model.train()
+
+#     if kwargs.get('eval_start', False):
+#         logger.current_epoch = -1
+#         accuracy, anls, ret_prec, _, _ = evaluate(val_data_loader, model, evaluator, return_scores_by_sample=False, return_pred_answers=False, **kwargs)
+#         is_updated = evaluator.update_global_metrics(accuracy, anls, -1)
+#         logger.log_val_metrics(accuracy, anls, ret_prec, update_best=is_updated)
+
+#     for epoch_ix in range(epochs):
+#         logger.current_epoch = epoch_ix
+#         train_epoch(train_data_loader, model, optimizer, lr_scheduler, evaluator, logger, **kwargs)
+
+#         # ─── PRINT THE NUMBER OF PADDED SAMPLES  FOR INFOGRAPHICVQA_GRAPHDOC  TO CHECK NUMBER OF SMALL DOCUMENTS WHO GET PADDED TO BE AT LEAST 3 LINES ───
+#         print(f"[INFO] Epoch {epoch_ix}: padded samples = {train_dataset.pad_count}")
+#         train_dataset.pad_count = 0
+#         # ───────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+
+#         accuracy, anls, ret_prec, _, _ = evaluate(val_data_loader, model, evaluator, return_scores_by_sample=False, return_pred_answers=False, **kwargs)
+
+#         is_updated = evaluator.update_global_metrics(accuracy, anls, epoch_ix)
+#         logger.log_val_metrics(accuracy, anls, ret_prec, update_best=is_updated)
+#         save_model(model, epoch_ix, update_best=is_updated, **kwargs)
+
+
+# if __name__ == '__main__':
+#     args = parse_args()
+#     config = load_config(args)
+
+#     model = build_model(config)
+
+#     # 3) Move _everything_ to the first visible GPU (or CPU)
+#     # device = torch.device("cuda" if ngpu > 0 else "cpu")
+#     # model = model.to(device)
+#     # model.train()
+
+#     train(model, **config)

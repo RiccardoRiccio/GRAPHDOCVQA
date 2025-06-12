@@ -13,9 +13,11 @@ from transformers import get_scheduler, AdamW
 
 # print("=== Running build_utils from:", __file__)
 
-
-
 def build_optimizer(model, length_train_loader, config):
+    # ── NEW: unwrap DataParallel if the caller already wrapped the model ──
+    if isinstance(model, torch.nn.DataParallel):
+        model = model.module
+    # ──────────────────────────────────────────────────────────────────────
     # 1) extract param groups
     proj_params    = list(model.projection.parameters())
     t5_decoder     = list(model.t5.decoder.parameters())
@@ -41,51 +43,84 @@ def build_optimizer(model, length_train_loader, config):
     )
 
 
-   # --- Now print EVERY parameter in the model ---
-    # print("=== All model parameters and their trainable status ===")
-    # for name, p in model.named_parameters():
-    #     status    = "Trainable" if p.requires_grad else "Frozen"
-    #     shape_str = str(tuple(p.shape))
-    #     print(f"{name:60}  {shape_str:15}  {status}")
-    # print("=== End of full parameter audit ===")
-    
-
-    # --- Print the parameters present in the optimizer ---
-    # print("=== Parameters in the optimizer ===")
-    # param_names = {id(p): n for n, p in model.named_parameters()}
-    # for group_idx, param_group in enumerate(optimizer.param_groups):
-    #     print(f"Parameter Group {group_idx}:")
-    #     for p in param_group['params']:
-    #         name   = param_names.get(id(p), "Unknown")
-    #         status = "Trainable" if p.requires_grad else "Frozen"
-    #         # convert tuple to string before applying width specifier
-    #         shape_str = str(tuple(p.shape))
-    #         print(f"  {name:60}  {shape_str:15}  {status}")
-    # print("=== End of parameters in the optimizer ===\n")
-
-    # # --- Summary counts ---
-    # #  a) within optimizer
-    # opt_params     = [p for g in optimizer.param_groups for p in g['params']]
-    # total_opt      = sum(p.numel() for p in opt_params)
-    # trainable_opt  = sum(p.numel() for p in opt_params if p.requires_grad)
-    # frozen_opt     = total_opt - trainable_opt
-    # print(f"Optimizer params:   total={total_opt:,}   trainable={trainable_opt:,}   frozen={frozen_opt:,}")
-    # #  b) whole model
-    # all_params      = list(model.parameters())
-    # total_all       = sum(p.numel() for p in all_params)
-    # trainable_all   = sum(p.numel() for p in all_params if p.requires_grad)
-    # frozen_all      = total_all - trainable_all
-    # print(f"Model-wide params:  total={total_all:,}   trainable={trainable_all:,}   frozen={frozen_all:,}\n")
-
-    
-
-
     num_training_steps = config['train_epochs'] * length_train_loader
     lr_scheduler = get_scheduler(
         name="linear", optimizer=optimizer, num_warmup_steps=config['warmup_iterations'], num_training_steps=num_training_steps
     )
 
     return optimizer, lr_scheduler
+# this works well with 1 gpu
+# def build_optimizer(model, length_train_loader, config):
+#     # 1) extract param groups
+#     proj_params    = list(model.projection.parameters())
+#     t5_decoder     = list(model.t5.decoder.parameters())
+#     graphdoc_params = list(model.graphdoc.parameters())
+    
+
+#     # optional: if you’ve unfreezed GraphDoc:
+#     # graphdoc_params = list(model.graphdoc.parameters())
+
+#     lr_proj = float(config['lr_projection'])
+#     lr_t5   = float(config['lr_t5_decoder'])
+#     lr_graphdoc = float(config['lr_graphdoc'])   
+
+#     # 2) build optimizer with distinct lrs
+#     optimizer = AdamW(
+#         [
+#             { "params": proj_params,           "lr": lr_proj     },
+#             { "params": t5_decoder, "lr": lr_t5    },
+#             {"params": graphdoc_params,"lr": lr_graphdoc}, 
+#             # { "params": graphdoc_params,     "lr": 1e-5    },  # uncomment if unfreezing GraphDoc
+#         ],
+#         weight_decay=1e-2
+#     )
+
+
+#    # --- Now print EVERY parameter in the model ---
+#     # print("=== All model parameters and their trainable status ===")
+#     # for name, p in model.named_parameters():
+#     #     status    = "Trainable" if p.requires_grad else "Frozen"
+#     #     shape_str = str(tuple(p.shape))
+#     #     print(f"{name:60}  {shape_str:15}  {status}")
+#     # print("=== End of full parameter audit ===")
+    
+
+#     # --- Print the parameters present in the optimizer ---
+#     # print("=== Parameters in the optimizer ===")
+#     # param_names = {id(p): n for n, p in model.named_parameters()}
+#     # for group_idx, param_group in enumerate(optimizer.param_groups):
+#     #     print(f"Parameter Group {group_idx}:")
+#     #     for p in param_group['params']:
+#     #         name   = param_names.get(id(p), "Unknown")
+#     #         status = "Trainable" if p.requires_grad else "Frozen"
+#     #         # convert tuple to string before applying width specifier
+#     #         shape_str = str(tuple(p.shape))
+#     #         print(f"  {name:60}  {shape_str:15}  {status}")
+#     # print("=== End of parameters in the optimizer ===\n")
+
+#     # # --- Summary counts ---
+#     # #  a) within optimizer
+#     # opt_params     = [p for g in optimizer.param_groups for p in g['params']]
+#     # total_opt      = sum(p.numel() for p in opt_params)
+#     # trainable_opt  = sum(p.numel() for p in opt_params if p.requires_grad)
+#     # frozen_opt     = total_opt - trainable_opt
+#     # print(f"Optimizer params:   total={total_opt:,}   trainable={trainable_opt:,}   frozen={frozen_opt:,}")
+#     # #  b) whole model
+#     # all_params      = list(model.parameters())
+#     # total_all       = sum(p.numel() for p in all_params)
+#     # trainable_all   = sum(p.numel() for p in all_params if p.requires_grad)
+#     # frozen_all      = total_all - trainable_all
+#     # print(f"Model-wide params:  total={total_all:,}   trainable={trainable_all:,}   frozen={frozen_all:,}\n")
+
+    
+
+
+#     num_training_steps = config['train_epochs'] * length_train_loader
+#     lr_scheduler = get_scheduler(
+#         name="linear", optimizer=optimizer, num_warmup_steps=config['warmup_iterations'], num_training_steps=num_training_steps
+#     )
+
+#     return optimizer, lr_scheduler
 
 # THIS OPTIMIZER WORKS BUT USE ONE LR FOR EACH MODEL-S PARAMETERS
 
@@ -131,7 +166,7 @@ def build_optimizer(model, length_train_loader, config):
 
 def build_model(config):
 
-    available_models = ['bertqa', 'longformer', 'bigbird', 'layoutlmv2', 'layoutlmv3', 't5', 'vt5', 'hi-vt5', 'vt5_gdoc', 'vt5_gdoc_2project', 'vt5_gdoc_project_gdoc', 'vt5_gdoc_project_gdoc_trans', 'vt5_gdoc_crossatt', 'vt5_gdoc_nowords', 'vt5_gdoc_addquestion', 'vt5_gdoc_multimodal', 'vt5_gdoc_token', 'vt5_gdoc_weightnowords', 'vt5_gdoc_upsample_and_project', 'vt5_lay_gdoc', 'vt5_gdoc_crossatt_gate', 'vt5_gdoc_mlpfusion', 'vt5_onlysemantic', 'vt5_spatialscaled', 'vt5_lay_visual', 'vt5_longer', 'vt5_freezed', 'graphdoct5vqa']
+    available_models = ['bertqa', 'longformer', 'bigbird', 'layoutlmv2', 'layoutlmv3', 't5', 'vt5', 'hi-vt5', 'vt5_gdoc', 'vt5_gdoc_2project', 'vt5_gdoc_project_gdoc', 'vt5_gdoc_project_gdoc_trans', 'vt5_gdoc_crossatt', 'vt5_gdoc_nowords', 'vt5_gdoc_addquestion', 'vt5_gdoc_multimodal', 'vt5_gdoc_token', 'vt5_gdoc_weightnowords', 'vt5_gdoc_upsample_and_project', 'vt5_lay_gdoc', 'vt5_gdoc_crossatt_gate', 'vt5_gdoc_mlpfusion', 'vt5_onlysemantic', 'vt5_spatialscaled', 'vt5_lay_visual', 'vt5_longer', 'vt5_freezed', 'graphdoct5vqa', 'graphdoct5vqa_addwords']
     if config['model_name'].lower() == 'bert' or config['model_name'].lower() == 'bertqa':
         from models.BertQA import BertQA
         model = BertQA(config)
@@ -242,7 +277,11 @@ def build_model(config):
     elif config['model_name'].lower() == 'graphdoct5vqa':
         from models.GRAPHDOCT5VQA import GRAPHDOCT5VQA as GRAPHDOCT5VQA
         model = GRAPHDOCT5VQA(config)
- 
+    
+    elif config['model_name'].lower() == 'graphdoct5vqa_addwords':
+        from models.GRAPHDOCT5VQA_ADDWORDS import GRAPHDOCT5VQA_ADDWORDS as GRAPHDOCT5VQA_ADDWORDS
+        model = GRAPHDOCT5VQA_ADDWORDS(config)
+  
  
     else:
         raise ValueError("Value '{:s}' for model selection not expected. Please choose one of {:}".format(config['model_name'], ', '.join(available_models)))
