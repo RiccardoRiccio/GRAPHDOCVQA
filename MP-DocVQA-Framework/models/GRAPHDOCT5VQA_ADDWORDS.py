@@ -261,10 +261,12 @@ class GRAPHDOCT5VQA_ADDWORDS(nn.Module):
         Build GraphDoc inputs – this time every node (question + words + lines)
         has both an embedding and a bbox, so the two sequence-lengths always match.
         """
-        device = self.device
+        device = next(self.parameters()).device   # device where the model lives
+
+
         B      = len(batch_data["questions"])
 
-        # ── move fixed-shape tensors once ─────────────────────────────────────────
+        # ── move fixed-shSape tensors once ─────────────────────────────────────────
         images     = batch_data["images"].to(device).float()           # [B,3,512,512]
         word_boxes = batch_data["word_boxes_resized"].to(device)       # [B,Nw_max,4]  (padded)
         line_boxes = batch_data["line_boxes_rs"].to(device)            # [B,Nl_max,4]  (padded)
@@ -276,6 +278,7 @@ class GRAPHDOCT5VQA_ADDWORDS(nn.Module):
         for i in range(B):
             # 1) question → CLS node
             q_emb   = self.encode_question(batch_data["questions"][i])      # [1,H]
+            q_emb   = q_emb.to(device)            
             cls_box = torch.tensor([0,0,512,512], dtype=torch.long, device=device)
 
             # 2) words
@@ -346,6 +349,7 @@ class GRAPHDOCT5VQA_ADDWORDS(nn.Module):
           • If `return_pred_answer=True`, return `(None, pred_texts, None, confidences)`
           • Otherwise return a dict with `"pred_answers", "pred_confidences", ...`
         """
+        device = batch_data["images"].device
         # print("\n[GRAPHDOCT5VQA forward] Entered forward()")
         # 1) If in training mode but no `target_answers` passed, fetch from batch_data:
 
@@ -420,42 +424,49 @@ class GRAPHDOCT5VQA_ADDWORDS(nn.Module):
                 return_dict=True
             )
             # print(f"[forward] T5 returned loss = {t5_out.loss.item()}, logits.shape = {t5_out.logits.shape}")
-            if return_pred_answer:
+            # if return_pred_answer:
 
-                # print("[forward] return_pred_answer=True, generating predictions for logging…")
-                # After computing the loss, also generate predicted answers for logging
-                with torch.no_grad():
-                    # print("tojen id.....", self.t5.config.decoder_start_token_id)
+            #     # print("[forward] return_pred_answer=True, generating predictions for logging…")
+            #     # After computing the loss, also generate predicted answers for logging
+            #     with torch.no_grad():
+            #         # print("tojen id.....", self.t5.config.decoder_start_token_id)
 
-                    gen_out = self.t5.generate(
-                        encoder_outputs=enc_out_for_t5,
-                        attention_mask=enc_attn_mask,
-                        decoder_start_token_id=self.t5.config.decoder_start_token_id,
-                        max_length=32,
-                        num_beams=4,
-                        early_stopping=True,
-                        return_dict_in_generate=True,
-                        output_scores=True
-                    )
-                pred_ids = gen_out.sequences
-                pred_texts = self.t5_tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
-                print(f"[forward] Generated pred_texts = {pred_texts}")
-                try:
-                    confidences = model_utils.get_generative_confidence(gen_out)
-                except:
-                    confidences = [0.0] * len(pred_texts)
-                print(f"[forward] Generated confidences = {confidences}")
+            #         gen_out = self.t5.generate(
+            #             encoder_outputs=enc_out_for_t5,
+            #             attention_mask=enc_attn_mask,
+            #             decoder_start_token_id=self.t5.config.decoder_start_token_id,
+            #             max_length=32,
+            #             num_beams=4,
+            #             early_stopping=True,
+            #             return_dict_in_generate=True,
+            #             output_scores=True
+            #         )
+            #     pred_ids = gen_out.sequences
+            #     pred_texts = self.t5_tokenizer.batch_decode(pred_ids, skip_special_tokens=True)
+            #     print(f"[forward] Generated pred_texts = {pred_texts}")
+            #     try:
+            #         confidences = model_utils.get_generative_confidence(gen_out)
+            #     except:
+            #         confidences = [0.0] * len(pred_texts)
+            #     print(f"[forward] Generated confidences = {confidences}")
 
-                return t5_out, pred_texts, None, confidences
+            #     return t5_out, pred_texts, None, confidences
 
-            else:
-                print("[forward] Returning training‐mode dict (no pred_answers)")
-                return {
-                    "loss": t5_out.loss,
-                    "logits": t5_out.logits,            # [B, L_tgt, vocab_size]
-                    "encoder_output": encoder_output,
-                    "node_embeddings": node_embeds
-                }
+            # else:
+            #     print("[forward] Returning training‐mode dict (no pred_answers)")
+            #     return {
+            #         "loss": t5_out.loss,
+            #         "logits": t5_out.logits,            # [B, L_tgt, vocab_size]
+            #         "encoder_output": encoder_output,
+            #         "node_embeddings": node_embeds
+            #     }
+            print("[forward] Returning training‐mode dict (no pred_answers)")
+            return {
+                "loss": t5_out.loss,
+                "logits": t5_out.logits,            # [B, L_tgt, vocab_size]
+                "encoder_output": encoder_output,
+                "node_embeddings": node_embeds
+            }
 
         # ──────── EVALUATION / INFERENCE BRANCH ────────
         else:

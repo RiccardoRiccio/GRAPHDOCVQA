@@ -11,12 +11,12 @@ data_parallel: True
 training_parameters:
   lr_projection: 2e-4
   lr_t5_decoder: 5e-5
-  lr_graphdoc: 1e-5 
-  # lr_t5_lm_head: 5e-5
+  lr_graphdoc: 5e-5 
+  # lr_t5: 5e-5
   lr: 2e-5  # 2e-4
   batch_size: 1
   train_epochs: 10
-  warmup_iterations: 1000
+  warmup_iterations: 0
 
 visual_module:
   model: 'dit'  # 'vit' / 'dit'

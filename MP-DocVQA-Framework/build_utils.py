@@ -22,6 +22,7 @@ def build_optimizer(model, length_train_loader, config):
     proj_params    = list(model.projection.parameters())
     t5_decoder     = list(model.t5.decoder.parameters())
     graphdoc_params = list(model.graphdoc.parameters())
+
     
 
     # optional: if you’ve unfreezed GraphDoc:
@@ -37,16 +38,25 @@ def build_optimizer(model, length_train_loader, config):
             { "params": proj_params,           "lr": lr_proj     },
             { "params": t5_decoder, "lr": lr_t5    },
             {"params": graphdoc_params,"lr": lr_graphdoc}, 
+         
             # { "params": graphdoc_params,     "lr": 1e-5    },  # uncomment if unfreezing GraphDoc
         ],
         weight_decay=1e-2
     )
-
-
     num_training_steps = config['train_epochs'] * length_train_loader
+
+    warmup_steps = int(0.05 * num_training_steps)  
     lr_scheduler = get_scheduler(
-        name="linear", optimizer=optimizer, num_warmup_steps=config['warmup_iterations'], num_training_steps=num_training_steps
+        name="linear",
+        optimizer=optimizer,
+        num_warmup_steps=warmup_steps,
+        num_training_steps=num_training_steps
     )
+
+    
+    # lr_scheduler = get_scheduler(
+    #     name="linear", optimizer=optimizer, num_warmup_steps=config['warmup_iterations'], num_training_steps=num_training_steps
+    # )
 
     return optimizer, lr_scheduler
 # this works well with 1 gpu

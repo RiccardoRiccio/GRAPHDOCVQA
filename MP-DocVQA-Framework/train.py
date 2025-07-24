@@ -36,41 +36,118 @@ from logger import Logger
 from checkpoint import save_model
 
 
-def train_epoch(data_loader, model, optimizer, lr_scheduler, evaluator, logger, **kwargs):
-    # model.model.train()
+
+ACC_STEPS = 8          # gradient-accumulation
+CLIP_NORM = 1.0        # max grad-norm
+
+
+def train_epoch(data_loader, model, optimizer, lr_scheduler,
+                evaluator, logger, **kwargs):
+    """
+    One epoch of training with
+      • gradient-accumulation  (ACC_STEPS)
+      • gradient-clipping      (CLIP_NORM)
+      • NO beam-generation     (return_pred_answer=False)
+    """
     model.train()
+    optimizer.zero_grad()
 
-    for batch_idx, batch in enumerate(tqdm(data_loader)):
-        gt_answers = batch['answers']
-        outputs, pred_answers, pred_answer_page, answer_conf = model.forward(batch, return_pred_answer=True)
-        loss = outputs.loss + outputs.ret_loss if hasattr(outputs, 'ret_loss') else outputs.loss
+    running_loss = 0.0
+    for step, batch in enumerate(tqdm(data_loader)):
 
+        # ─── forward ──────────────────────────────────────────────
+        outputs = model.forward(batch, return_pred_answer=False)
+        loss    = outputs["loss"] / ACC_STEPS          # scale for accumulation
+        running_loss += loss.item()
+
+        # ─── backward ─────────────────────────────────────────────
         loss.backward()
-        optimizer.step()
-        lr_scheduler.step()
-        optimizer.zero_grad()
 
-        metric = evaluator.get_metrics(gt_answers, pred_answers)
+        # optional sanity-check: print GraphDoc grad once
+        if step == 0:
+        # GraphDoc → LayoutCLM → embeddings → word_embeddings
+            try:
+                g = (
+                    model.graphdoc
+                        .layoutclm
+                        .embeddings
+                        .word_embeddings
+                        .weight.grad
+                )
+                if g is not None:
+                    print("GraphDoc grad-mean:", g.abs().mean().item())
+            except AttributeError:
+                print("GraphDoc grad-mean: No grad (or at least not printed)")
+                # architecture changed → just skip the debug print
+                pass
 
-        batch_acc = np.mean(metric['accuracy'])
-        batch_anls = np.mean(metric['anls'])
 
-        log_dict = {
-            'Train/Batch loss': outputs.loss.item(),
-            'Train/Batch Accuracy': batch_acc,
-            'Train/Batch ANLS': batch_anls,
-            'lr': optimizer.param_groups[0]['lr']
-        }
+        # ─── optimiser step every virtual batch ───────────────────
+        if (step + 1) % ACC_STEPS == 0:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), CLIP_NORM)
+            optimizer.step()
+            lr_scheduler.step()
+            optimizer.zero_grad()
 
-        if hasattr(outputs, 'ret_loss'):
-            log_dict['Train/Batch retrieval loss'] = outputs.ret_loss.item()
+            # --- simple stdout debug ---------------------------------
+            print(
+                f"[Epoch {logger.current_epoch:02d} | "
+                f"Step {(step+1):05d}/{len(data_loader):05d}] "
+                f"loss = {running_loss:.4f} | lr = {optimizer.param_groups[0]['lr']:.2e}"
+            )
+            # ---------------------------------------------------------
 
-        if 'answer_page_idx' in batch and None not in batch['answer_page_idx']:
-            ret_metric = evaluator.get_retrieval_metric(batch.get('answer_page_idx', None), pred_answer_page)
-            batch_ret_prec = np.mean(ret_metric)
-            log_dict['Train/Batch Ret. Prec.'] = batch_ret_prec
+            # log once per virtual batch
+            log_dict = {
+                "Train/Batch loss": outputs["loss"].item(),
+                "lr": optimizer.param_groups[0]["lr"],
+            }
 
-        logger.logger.log(log_dict, step=logger.current_epoch * logger.len_dataset + batch_idx)
+            logger.logger.log(
+                log_dict,
+                step=logger.current_epoch * logger.len_dataset + step,
+            )
+            running_loss = 0.0
+
+
+
+
+#  THIS IS WORKING FOR ALL MODELS JUST DO NOT CONTAIN CLIPPING AND ACCUMULATION IN 8 BATCH SIZE
+# def train_epoch(data_loader, model, optimizer, lr_scheduler, evaluator, logger, **kwargs):
+#     # model.model.train()
+#     model.train()
+
+#     for batch_idx, batch in enumerate(tqdm(data_loader)):
+#         gt_answers = batch['answers']
+#         outputs, pred_answers, pred_answer_page, answer_conf = model.forward(batch, return_pred_answer=True)
+#         loss = outputs.loss + outputs.ret_loss if hasattr(outputs, 'ret_loss') else outputs.loss
+
+#         loss.backward()
+#         optimizer.step()
+#         lr_scheduler.step()
+#         optimizer.zero_grad()
+
+#         metric = evaluator.get_metrics(gt_answers, pred_answers)
+
+#         batch_acc = np.mean(metric['accuracy'])
+#         batch_anls = np.mean(metric['anls'])
+
+#         log_dict = {
+#             'Train/Batch loss': outputs.loss.item(),
+#             'Train/Batch Accuracy': batch_acc,
+#             'Train/Batch ANLS': batch_anls,
+#             'lr': optimizer.param_groups[0]['lr']
+#         }
+
+#         if hasattr(outputs, 'ret_loss'):
+#             log_dict['Train/Batch retrieval loss'] = outputs.ret_loss.item()
+
+#         if 'answer_page_idx' in batch and None not in batch['answer_page_idx']:
+#             ret_metric = evaluator.get_retrieval_metric(batch.get('answer_page_idx', None), pred_answer_page)
+#             batch_ret_prec = np.mean(ret_metric)
+#             log_dict['Train/Batch Ret. Prec.'] = batch_ret_prec
+
+#         logger.logger.log(log_dict, step=logger.current_epoch * logger.len_dataset + batch_idx)
 
     # return total_accuracies, total_anls, answers
 

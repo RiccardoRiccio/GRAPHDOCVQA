@@ -1,36 +1,38 @@
 # import torch
 # from torch.utils.data import DataLoader
 # from torchvision.transforms import ToTensor
-# from datasets.InfographicVQA import InfographicsVQADataset, singlepage_docvqa_collate_fn  # adjust import as needed
-from PIL import Image
-from pathlib import Path
-import matplotlib.pyplot as plt
+# # from datasets.InfographicVQA import InfographicsVQADataset, singlepage_docvqa_collate_fn  # adjust import as needed
 
-# 1) Specify your images directory and target save path
-images_dir = Path("/data2/users/rriccio/infographic/infographicsvqa_images")
-target_save_path = Path("/home/rriccio/DocVQA_Project/MP-DocVQA-Framework/70572.png")
+print("hi")
+# from PIL import Image
+# from pathlib import Path
+# import matplotlib.pyplot as plt
 
-# 2) Locate the file (try common extensions)
-for ext in (".jpeg", ".jpg", ".png"):
-    img_path = images_dir / f"70572{ext}"
-    if img_path.exists():
-        break
-else:
-    raise FileNotFoundError("Could not find 36186.jpeg/.jpg/.png in your images folder")
+# # 1) Specify your images directory and target save path
+# images_dir = Path("/data2/users/rriccio/infographic/infographicsvqa_images")
+# target_save_path = Path("/home/rriccio/DocVQA_Project/MP-DocVQA-Framework/70572.png")
 
-# 3) Open and display
-img = Image.open(img_path).convert("RGB")
-plt.figure(figsize=(6,6))
-plt.imshow(img)
-plt.axis("off")
-plt.title(f"Original '70572' ({img.size[0]}×{img.size[1]})")
-plt.show()
+# # 2) Locate the file (try common extensions)
+# for ext in (".jpeg", ".jpg", ".png"):
+#     img_path = images_dir / f"70572{ext}"
+#     if img_path.exists():
+#         break
+# else:
+#     raise FileNotFoundError("Could not find 36186.jpeg/.jpg/.png in your images folder")
 
-# 4) Save to the specified path
-# Note: If the given directory does not exist, this will raise an error.
-target_save_path.parent.mkdir(parents=True, exist_ok=True)
-img.save(target_save_path)
-print(f"Image has been saved to: {target_save_path}")
+# # 3) Open and display
+# img = Image.open(img_path).convert("RGB")
+# plt.figure(figsize=(6,6))
+# plt.imshow(img)
+# plt.axis("off")
+# plt.title(f"Original '70572' ({img.size[0]}×{img.size[1]})")
+# plt.show()
+
+# # 4) Save to the specified path
+# # Note: If the given directory does not exist, this will raise an error.
+# target_save_path.parent.mkdir(parents=True, exist_ok=True)
+# img.save(target_save_path)
+# print(f"Image has been saved to: {target_save_path}")
 
 
 

@@ -109,8 +109,13 @@ def process_images(input_dir, output_dir):
             print(f"❌ Error processing {image_path}: {str(e)}")
 
 def main():
+    # Infographic
     input_dir = "/data2/users/rriccio/infographic/infographicsvqa_images"
     output_dir = "/data2/users/rriccio/easyocr_infographic"
+
+    # Spdocvqa
+    # input_dir = "/data2/users/rriccio/spdocvqa_images"
+    # output_dir = "/data2/users/rriccio/easyocr_spdocvqa"
 
     process_images(input_dir, output_dir)
 
